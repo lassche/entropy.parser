@@ -1,0 +1,84 @@
+﻿//
+// JS Packer rule set
+// (c) 2010 ML
+//
+// released under the creative commons attribution-non commerical license, see
+// http://69.162.108.50/~marklass/license.html
+// 
+// Syntax follows the form of "ruleID = ruleDescription;".
+//
+// RuleDescription is in the form of lists, the following lists are supported: 
+//
+// - literal. Eg "matchme"
+// - or list, requires one of its elements to match. Eg ( "this", "or", "that" )
+// - sequence, requires all elements to match in the same order. Eg ["this", "and", "that"]
+// - match - until, matches the first clause until the termination clause is matched. Eg { "badger" ... "mushroom" }
+// - count, requires the a precise number of matches. Eg < "badger", 1, 8 > requires at least 1 and at the most 8 matches
+//   if no min / max numbers are provided the encapsulated clause is optional (equivalent to < "clause", 0, -1 > )
+// - charset, requires a character to match one of the characters in the list. Eg '0123456789'
+// - reference, referes to a rule in the ruleset eg x = "x"; xx = [x, x]; 
+//
+// The following rules are predefined:
+// 
+// - eof, true is the end of file is encountered
+// - *, matches any character
+// - eoln, matches the end of line, equivalent to eoln = '\n\r';
+// - whitespace, matches whitespace characters, equivalent to whitespace = '\n\r \t';
+// - lowercase, matches lowercase letters,
+// - uppercase, matches uppercase letters,
+// - letter, matches lowercase or uppercase characters
+// - digit, matches any digit equivalent to digit = '0123456789';
+//
+// Predefined rules can be overwritten.
+//
+// The following set of rules are defined to identify comments and function calls
+// in a javascript file so they can be removed. It by no means covers the entire javascript
+// syntax, only a portion of it.
+
+slTokenStart        = "//";
+slEnd               = (eoln, eof);
+slComment           = [slTokenStart, {* ... slEnd}];
+
+mlTokenStart        = "/*";
+mlTokenEnd          = "*/";
+mlComment           = [mlTokenStart, {* ... mlTokenEnd}, mlTokenEnd];
+
+comment             = (slComment, mlComment);
+
+identifierRemainder = < (letter, digit, "_") >;
+identifierRemainder.addToParseTree = false;
+
+identifierStart     = ("_", letter );
+identifierStart.includeInParseTree = false;
+
+identifier          = [ identifierStart, identifierRemainder ];
+identifier.skipWhiteSpace = false;
+
+scope               = <[identifier, "."]>;
+variable            = [scope, identifier];
+string              = ["\"", {*..."\""}, "\""];
+sign                = ("+", "-");
+
+numberDigits        = [ digit, {digit ... !digit}, < [".", digit, {digit ... !digit}] >];
+numberDigits.skipWhiteSpace = false;
+
+number              = ([sign, numberDigits], [numberDigits]);
+
+operator            = ("==", "!=", ">", "<", ">=", "<=", "&&", "||");
+binaryEvaluation    = [ (functionCall, variable), operator, (functionCall, variable) ];
+unaryEvaluation     = [ <"!">, (functionCall, variable) ];
+evaluation          = (binaryEvaluation, unaryEvaluation);
+expression          = evaluation;
+
+parameter           = ( number, string, functionCall, expression, variable );
+multipleParameters  = [parameter, < [",", parameter ], 1 >, ")"];
+parameterList       = ["(", (")", multipleParameters, [parameter, ")"])];
+
+functionName        = identifier;
+functionCall        = [scope, functionName, parameterList];
+
+statement           = [functionCall, ";"];
+
+code                = { * ... (slTokenStart, mlTokenStart, eof, statement) };
+jsFile              = {(comment, statement, code) ... eof};
+
