@@ -15,7 +15,7 @@ namespace entropy.parser
     /// </summary>
     public class ReferenceRule : AbstractRule
     {
-        private string   m_reference;
+        private string     m_reference;
         private RuleParser m_util;
 
         public ReferenceRule( string reference, RuleParser util)

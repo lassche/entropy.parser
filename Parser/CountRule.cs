@@ -19,7 +19,6 @@ namespace entropy.parser
     {
         public const string COUNT_RULE_ID = "CountRule";
 
-        private IRule m_rule;
         private int   m_min;
         private int   m_max;
 
@@ -30,8 +29,6 @@ namespace entropy.parser
         public CountRule ()
         {
             base.setRuleID(COUNT_RULE_ID);
-
-            m_rule = null;
             m_min  = -1;
             m_max  = -1;
         }
@@ -68,7 +65,7 @@ namespace entropy.parser
         {
             Debug.Assert(rule != null);
 
-            m_rule = rule;
+            m_subRules = new IRule[]{ rule };
             m_min  = min;
             m_max  = max;
 
@@ -92,11 +89,11 @@ namespace entropy.parser
             
             do
             {
-                temp = m_rule.parse( text, index + result.getLength() );
+                temp = m_subRules[0].parse( text, index + result.getLength() );
                 
                 if ( temp != null )
                 {
-                    if (m_rule.includeParseTreeNode())
+                    if (m_subRules[0].includeParseTreeNode())
                     {
                         result.addChild( temp );
                     }
@@ -129,7 +126,7 @@ namespace entropy.parser
 
             do
             {
-                temp = m_rule.isMatch(text, index + result);
+                temp = m_subRules[0].isMatch(text, index + result);
 
                 if (temp >= 0)
                 {

@@ -7,6 +7,7 @@
 //
 
 using System;
+using System.Diagnostics;
 
 namespace entropy.parser
 {
@@ -15,39 +16,55 @@ namespace entropy.parser
     /// </summary>
     public class OrRule : AbstractRule
     {
-        private Object[]         m_ruleSet;
-        private MatchLiteralRule m_literalHelper;
+        public const string OR_RULE_ID = "SequenceRule";
 
         public OrRule( Object left, Object right)
         {
-            m_ruleSet       = new Object[]{left, right};
-            m_literalHelper = new MatchLiteralRule("");
-            base.setRuleID("or");
+            Debug.Assert(left != null);
+            Debug.Assert(left is string || left is IRule);
+            Debug.Assert(right != null);
+            Debug.Assert(right is string || right is IRule);
+            
+            m_subRules      = new IRule[2];
+            
+            addRule(left, 0);
+            addRule(right, 1);
+            
+            base.setRuleID(OR_RULE_ID);
         }
 
         public OrRule( Object[] ruleSet)
         {
-            m_ruleSet = ruleSet;
-            base.setRuleID("or");
+            Debug.Assert(ruleSet != null);
+            Debug.Assert(ruleSet.Length > 0);
+
+            m_subRules      = new IRule[ruleSet.Length];
+            
+            for (int i = 0; i < ruleSet.Length; ++i)
+            {
+                addRule(ruleSet[i], i);
+            }
+
+            base.setRuleID(OR_RULE_ID);
+        }
+
+        public void addRule(Object rule, int index)
+        {
+            Debug.Assert(rule != null);
+            Debug.Assert(rule is string || rule is IRule);
+
+            IRule addedRule  = rule is IRule 
+                             ? rule as IRule 
+                             : new MatchLiteralRule(rule as string); 
+
+            m_subRules[index] = addedRule;
         }
 
         public override int isMatch(string text, int index)
         {
-            for (int i = 0; i < m_ruleSet.Length; ++i)
+            for (int i = 0; i < m_subRules.Length; ++i)
             {
-                IRule rule = null;
-
-                if (m_ruleSet[i] is string)
-                {
-                    rule = m_literalHelper;
-                    m_literalHelper.setLiteral( (string) m_ruleSet[i] );
-                }
-                else
-                {
-                    rule = (IRule) m_ruleSet[i];
-                }
-
-                
+                IRule rule = m_subRules[i];
                 int result = rule.isMatch(text, index);
 
                 if (result >= 0)
@@ -66,34 +83,32 @@ namespace entropy.parser
 
         public override ParseTreeNode parse( string text, int index )
         {
-            ParseTreeNode node = new ParseTreeNode(this, index);
-
-            for (int i = 0; i < m_ruleSet.Length; ++i)
+            for (int i = 0; i < m_subRules.Length; ++i)
             {
-                IRule rule = null;
+                IRule rule = m_subRules[i];
 
-                if (m_ruleSet[i] is string)
+                if (rule.includeParseTreeNode())
                 {
-                    rule = m_literalHelper;
-                    m_literalHelper.setLiteral( (string) m_ruleSet[i] );
+                    ParseTreeNode result = rule.parse(text, index);
+                    
+                    if (result != null)
+                    {
+                        ParseTreeNode node = new ParseTreeNode(this, index);
+                        node.addChild(result);
+                        node.setLength(result.getLength());
+                        return node;
+                    }
                 }
                 else
                 {
-                    rule = (IRule) m_ruleSet[i];
-                }
+                    int length = rule.isMatch(text, index);
 
-                
-                ParseTreeNode result = rule.parse(text, index);
-                
-                if (result != null)
-                {
-                    if (rule.includeParseTreeNode())
+                    if (length >= 0)
                     {
-                        node.addChild(result);
+                        ParseTreeNode node = new ParseTreeNode(this, index);
+                        node.setLength(length);
+                        return node;
                     }
-
-                    node.setLength(result.getLength());
-                    return node;
                 }
             }
 

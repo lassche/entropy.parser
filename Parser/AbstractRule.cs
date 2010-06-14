@@ -23,8 +23,9 @@ namespace entropy.parser
         protected ruleMatchCallback m_callback;
         protected string            m_ruleID;
         protected bool              m_includeInParseTree;
+        protected IRule[]           m_subRules;
 
-        protected bool              m_debug     = true;
+        protected bool              m_debug     = false;
         protected string            m_debugText = null;
 
         /// <summary>
@@ -36,6 +37,7 @@ namespace entropy.parser
             m_includeInParseTree = true;
             m_ruleID             = ABSTRACT_RULE_ID;
             m_callback           = null;
+            m_subRules           = null;
         }
 
         /// <summary>
@@ -95,6 +97,17 @@ namespace entropy.parser
         public void setIncludeParseTreeNode(bool value)
         {
             m_includeInParseTree = value;
+
+            // no use trying to create child nodes as they
+            // will eventually be discarded anyway. So
+            // propagate the setting
+            if (!value && m_subRules != null)
+            {
+                for (int i = 0; i < m_subRules.Length; ++i)
+                {
+                    m_subRules[i].setIncludeParseTreeNode( false );
+                }
+            }
         }
 
         /// <summary>

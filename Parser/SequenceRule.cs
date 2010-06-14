@@ -7,6 +7,7 @@
 //
 
 using System;
+using System.Diagnostics;
 
 namespace entropy.parser
 {
@@ -17,9 +18,11 @@ namespace entropy.parser
     {
         public const string SEQUENCE_RULE_ID = "SequenceRule";
 
-        private Object[]         m_rules;
-        private bool             m_ignoreWhiteSpace;
-        private MatchLiteralRule m_literalHelper;
+        private bool m_ignoreWhiteSpace;
+        // if the rule fails to match after matching N other items
+        // a ParserException will be thrown. If the value is -1
+        // no exceptions will be thrown
+        private int  m_raiseErrorAfter = -1;
 
         public SequenceRule(  )
         {
@@ -34,12 +37,28 @@ namespace entropy.parser
         public void initialize( Object[] rules )
         {
             base.setRuleID( SEQUENCE_RULE_ID );
-            m_rules = rules;
+
             m_ignoreWhiteSpace  = true;
-            
-            if ( m_literalHelper == null )
+
+            if (rules != null)
             {
-                m_literalHelper     = new MatchLiteralRule("");
+                m_subRules          = new IRule[rules.Length];
+                
+                for (int i = 0; i < rules.Length; ++i)
+                {
+                    if (rules[i] is string )
+                    {
+                        m_subRules[i] = new MatchLiteralRule(rules[i] as string);
+                    }
+                    else if (rules[i] is IRule)
+                    {
+                        m_subRules[i] = rules[i] as IRule;
+                    }
+                    else
+                    {
+                        Debug.Assert(false);
+                    }
+                }
             }
         }
 
@@ -74,34 +93,42 @@ namespace entropy.parser
             ParseTreeNode node = new ParseTreeNode(this, index);
             int result = 0;
             
-            for (int i = 0; i < m_rules.Length; ++i)
+            for (int i = 0; i < m_subRules.Length; ++i)
             {
-                IRule rule = null;
+                IRule         rule       = m_subRules[i];
+                int           testLength = -1;
+                ParseTreeNode test       = null;
 
                 if (m_ignoreWhiteSpace)
                 {
                     result += skipWhiteSpace(text, index + result);
                 }                
 
-                if (m_rules[i] is string)
+                if (rule.includeParseTreeNode())
                 {
-                    m_literalHelper.setLiteral( (string) m_rules[i] );
-                    rule = m_literalHelper;
+                    test = rule.parse(text, index + result);
+                    testLength = (test == null)? -1 : test.getLength();
                 }
                 else
                 {
-                    rule = (IRule) m_rules[i];
+                    testLength = rule.isMatch(text, index + result);
                 }
-
-                ParseTreeNode test = rule.parse(text, index + result);
-
-                if (test == null)
+                
+                if (testLength == -1)
                 {
+                    if (i >= m_raiseErrorAfter)
+                    {
+                        string errorMessage = "Failed to match: " + m_ruleID;
+                        errorMessage += "\nExpecting: " + rule.getRuleID();
+
+                        throw new ParserException("Failed to match: " + m_ruleID);
+                    }
+
                     return null;
                 }
                 else
                 {
-                    result += test.getLength();
+                    result += testLength;
 
                     if (rule.includeParseTreeNode())
                     {
@@ -118,7 +145,7 @@ namespace entropy.parser
         {
             int result = 0;
             
-            for (int i = 0; i < m_rules.Length; ++i)
+            for (int i = 0; i < m_subRules.Length; ++i)
             {
                 int temp = 0;
 
@@ -127,15 +154,7 @@ namespace entropy.parser
                     result += skipWhiteSpace(text, index + result);
                 }
                 
-                if (m_rules[i] is string)
-                {
-                    m_literalHelper.setLiteral( (string) m_rules[i] );
-                    temp = m_literalHelper.isMatch(text, index + result);
-                }
-                else
-                {
-                    temp = ((IRule)m_rules[i]).isMatch(text, index + result);
-                }
+                temp = m_subRules[i].isMatch(text, index + result);
 
                 if (temp == -1)
                 {

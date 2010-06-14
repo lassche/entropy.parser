@@ -83,7 +83,10 @@ namespace entropy.parser
         /// If the rule is set to inclusive the length will be the remainder
         /// rule match(es) including the termination rule match otherwise it
         /// will just be the the remainder matches.
+        /// 
+        /// Throws a parser exception if the remainder rule yields 0
         /// </summary>
+        /// 
         public override int isMatch(string text, int index)
         {
             Debug.Assert( text != null );
@@ -113,14 +116,18 @@ namespace entropy.parser
                 {
                     test = m_remainderRule.isMatch(text, index+temp);
 
-                    if (test >= 0)
+                    if (test > 0)
                     {
                         temp += test;
                     }
-                    else
+                    else if (test < 0)
                     {
                         result = -1;
                         break;
+                    }
+                    else
+                    {
+                        throw new ParserException("Fatal error: inconclusive MatchUntilRule ( " + getRuleID() + " ) ");
                     }
                 }
             }
@@ -146,18 +153,30 @@ namespace entropy.parser
             Debug.Assert( index >= 0 );
 
             ParseTreeNode node = new ParseTreeNode(this, index);
-            int result = -1;
-            int temp   = 0;
+            
+            int result     = -1;
+            int temp       = 0;
+            int testLength = -1;
 
             while ( true )
             {
-                ParseTreeNode test = m_terminationRule.parse(text, index+temp);
+                ParseTreeNode test = null;
 
-                if (test != null)
+                if (m_terminationRule.includeParseTreeNode() && m_inclusive)
+                {
+                    test = m_terminationRule.parse(text, index+temp);
+                    testLength = test.getLength();
+                }
+                else
+                {
+                    testLength = m_terminationRule.isMatch(text, index+temp);
+                }
+
+                if (testLength >= 0)
                 {
                     if (m_inclusive)
                     {
-                        result = temp + test.getLength();
+                        result = temp + testLength;
                         if (m_terminationRule.includeParseTreeNode())
                         {
                             node.addChild( test );
@@ -172,11 +191,23 @@ namespace entropy.parser
                 }
                 else
                 {
-                    test = m_remainderRule.parse(text, index+temp);
-
-                    if (test != null)
+                    if (m_remainderRule.includeParseTreeNode())
                     {
-                        temp += test.getLength();
+                        test = m_remainderRule.parse(text, index+temp);
+                        testLength = test != null ? test.getLength() : -1;
+                    }
+                    else
+                    {
+                        testLength = m_remainderRule.isMatch(text, index + temp);
+                    }
+
+                    if (testLength == 0)
+                    {
+                        throw new ParserException("Fatal error: inconclusive MatchUntilRule ( " + getRuleID() + " ) ");
+                    }
+                    else  if (testLength > 0)
+                    {
+                        temp += testLength;
 
                         if (m_remainderRule.includeParseTreeNode())
                         {

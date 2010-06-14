@@ -41,7 +41,7 @@ namespace JSPacker
 
             if (!foundAssert)
             {
-                m_document += node.getValue( text );
+                m_document += node.getValue( text ).Replace("\n", "").Replace("\r", "");
             }
 
             return false;
@@ -54,7 +54,7 @@ namespace JSPacker
 
         public bool code( string text, ParseTreeNode node )
         {
-            m_document += node.getValue( text );
+            m_document += node.getValue( text ).Replace("\n", "").Replace("\r", "");
             return false;
         }
     };
